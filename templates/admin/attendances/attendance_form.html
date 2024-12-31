@@ -1,0 +1,181 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block extrahead %}
+<!-- {{ block.super }} -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- {{ block.super }} -->
+<div class="p-4 bg-white shadow-md rounded-lg">
+    <h2 class="text-2xl font-bold mb-4">تصفية الحضور</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label for="class-level" class="block text-sm font-medium text-gray-700 mb-2">الصف الدراسي</label>
+            <select id="class-level" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                <option value="">اختر الصف الدراسي</option>
+            </select>
+        </div>
+        <div>
+            <label for="section" class="block text-sm font-medium text-gray-700 mb-2">الشعبة الدراسية</label>
+            <select id="section" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                <option value="">اختر الشعبة الدراسية</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<script>
+let csrfToken=getCSRFToken();
+document.addEventListener('DOMContentLoaded', function() {
+    const classLevelSelect = document.getElementById('class-level');
+    const sectionSelect = document.getElementById('section');
+    const studentsTable = document.createElement('table');
+    studentsTable.className = 'mt-4 w-full border-collapse border border-gray-300';
+    document.querySelector('.p-4').appendChild(studentsTable);
+
+    let classLevels = [];
+
+    const ATTENDANCE_CHOICES = [
+        ['present', 'حاضر'],
+        ['absent', 'غائب'],
+        ['late', 'متأخر'],
+        ['excused', 'معذور']
+    ];
+
+    axios.get('{% url "class_levels.index" %}',{
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken, // تضمين رمز CSRF
+        },
+        withCredentials: true, // تضمين ملفات تعريف الارتباط
+    })
+        .then(function (response) {
+            classLevels = response.data;
+            classLevels.forEach(classLevel => {
+                const option = document.createElement('option');
+                option.value = classLevel.id;
+                option.textContent = classLevel.name;
+                classLevelSelect.appendChild(option);
+            });
+        })
+        .catch(function (error) {
+            console.error('Error fetching class levels:', error);
+        });
+
+    classLevelSelect.addEventListener('change', function() {
+        const selectedClassLevelId = parseInt(this.value);
+        sectionSelect.innerHTML = '<option value="">اختر الشعبة الدراسية</option>';
+
+        if (selectedClassLevelId) {
+            const selectedClassLevel = classLevels.find(cl => cl.id === selectedClassLevelId);
+            if (selectedClassLevel && selectedClassLevel.section) {
+                selectedClassLevel.section.forEach(section => {
+                    const option = document.createElement('option');
+                    option.value = section.id;
+                    option.textContent = section.name;
+                    sectionSelect.appendChild(option);
+                });
+            }
+        }
+    });
+
+    sectionSelect.addEventListener('change', function() {
+        const selectedSectionId = this.value;
+        if (selectedSectionId) {
+            axios.get(`{% url "section_students.index" pk=0 %}`.replace('0', selectedSectionId),
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken, // تضمين رمز CSRF
+                },
+                withCredentials: true, // تضمين ملفات تعريف الارتباط
+            }
+            )
+                .then(function (response) {
+                    const students = response.data;
+                    renderStudentsTable(students);
+                })
+                .catch(function (error) {
+                    console.error('Error fetching students:', error);
+                });
+        }
+    });
+
+    function renderStudentsTable(students) {
+        const tableHeader = `
+            <thead>
+                <tr class="bg-gray-100">
+                    <th class="border border-gray-300 px-4 py-2">رقم الطالب</th>
+                    <th class="border border-gray-300 px-4 py-2">اسم الطالب</th>
+                    ${ATTENDANCE_CHOICES.map(choice => `<th class="border border-gray-300 px-4 py-2">${choice[1]}</th>`).join('')}
+                </tr>
+            </thead>
+        `;
+
+        const tableBody = students.map(student => `
+            <tr>
+                <td class="border border-gray-300 px-4 py-2">${student.id}</td>
+                <td class="border border-gray-300 px-4 py-2">${student.name}</td>
+                ${ATTENDANCE_CHOICES.map(choice => `
+                    <td class="border border-gray-300 px-4 py-2">
+                        <input type="radio" name="attendance_${student.id}" value="${choice[0]}" ${choice[0] === 'present' ? 'checked' : ''}>
+                    </td>
+                `).join('')}
+            </tr>
+        `).join('');
+
+        studentsTable.innerHTML = tableHeader + '<tbody>' + tableBody + '</tbody>';
+
+        // Add submit button
+        const submitButton = document.createElement('button');
+        submitButton.textContent = 'حفظ الحضور';
+        submitButton.className = 'mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600';
+        submitButton.addEventListener('click', submitAttendance);
+        document.querySelector('.p-4').appendChild(submitButton);
+    }
+
+    function submitAttendance() {
+        const attendanceData = {};
+        const radioButtons = document.querySelectorAll('input[type="radio"]:checked');
+        radioButtons.forEach(radio => {
+            const studentId = radio.name.split('_')[1];
+            attendanceData[studentId] = radio.value;
+        });
+       
+        axios.post('{% url "attendances.save" %}', attendanceData,
+        {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken, // تضمين رمز CSRF
+            },
+            withCredentials: true, // تضمين ملفات تعريف الارتباط
+        }
+        )
+            .then(function (response) {
+                console.log('Attendance saved successfully:', response.data);
+                alert('تم حفظ الحضور بنجاح');
+            })
+            .catch(function (error) {
+                console.error('Error saving attendance:', error);
+                alert('حدث خطأ أثناء حفظ الحضور');
+            });
+    }
+});
+
+
+function getCSRFToken() {
+    let cookieValue = null;
+    const cookies = document.cookie.split(';');
+    cookies.forEach(cookie => {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrftoken') {
+            cookieValue = decodeURIComponent(value);
+        }
+    });
+    return cookieValue;
+}
+</script>
+{% endblock %}

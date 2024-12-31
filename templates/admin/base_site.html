@@ -1,0 +1,9 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ site_title }}{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <!-- TailwindCSS CDN  me-->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.2/dist/tailwind.min.css" rel="stylesheet">
+{% endblock %}

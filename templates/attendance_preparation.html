@@ -1,0 +1,202 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="ar">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تحضير الطلاب</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    .return-button {
+  background-color: #4CAF50; /* لون الخلفية الأخضر */
+  border: none; /* إزالة الحدود */
+  color: white; /* لون النص */
+  padding: 10px 20px; /* مساحة داخلية */
+  font-size: 16px; /* حجم الخط */
+  border-radius: 5px; /* حواف مستديرة */
+  cursor: pointer; /* تغيير شكل المؤشر عند التمرير */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2); /* تأثير الظل */
+  transition: background-color 0.3s ease, transform 0.2s ease; /* تأثير الانتقال */
+}
+
+.return-button a {
+  text-decoration: none; /* إزالة الخط السفلي من الرابط */
+  color: white; /* لون النص للرابط */
+}
+
+.return-button:hover {
+  background-color: #45a049; /* لون عند التمرير */
+  transform: scale(1.05); /* تأثير التكبير الخفيف */
+}
+
+  </style>
+</head>
+
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="text-center mb-4">تحضير الطلاب</h1>
+    <form method="POST" action="{% url 'start_attendance' %}">
+      {% csrf_token %}
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <label for="id_academic_year" class="form-label">السنة الأكاديمية</label>
+          <select id="id_academic_year" name="academic_year" class="form-select" required>
+            <option value="">اختر السنة الأكاديمية</option>
+            {% for year in academic_years %}
+            <option value="{{ year.id }}" style="color:black;">{{ year }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label for="id_class_" class="form-label">الفصل الدراسي</label>
+          <select id="id_class_" name="class_" class="form-select" required>
+            <option value="">اختر الفصل</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label for="id_section" class="form-label">الشعبة</label>
+          <select id="id_section" name="section" class="form-select" required>
+            <option value="">اختر الشعبة</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">بدء التحضير</button>
+    </form>
+    {% comment %} <button class="return-button"> {% endcomment %}
+    <br>
+    <button class="btn btn-primary w-100" style="background-color: green;cu">
+        <a href="/admin/attendances/attendance/" style="color: whitesmoke;text-decoration: none;">العودة إلى شاشة التحضير</a>
+    </button>
+  </div>
+
+  <script>
+    $(document).ready(function () {
+      // عند اختيار السنة الأكاديمية
+      $('#id_academic_year').change(function () {
+        var academicYearId = $(this).val();
+        $('#id_class_').empty().append('<option value="">اختر الفصل</option>');
+        $('#id_section').empty().append('<option value="">اختر الشعبة</option>');
+
+        if (academicYearId) {
+          $.ajax({
+            url: "{% url 'load_classes' %}",
+            data: { 'academic_year_id': academicYearId },
+            success: function (data) {
+              $.each(data, function (key, value) {
+                $('#id_class_').append('<option value="' + value.id + '">' + value.name + '</option>');
+              });
+            },
+            error: function () {
+              alert("حدث خطأ أثناء تحميل الفصول!");
+            }
+          });
+        }
+      });
+
+      // عند اختيار الفصل الدراسي
+      $('#id_class_').change(function () {
+        var academicYearId = $('#id_academic_year').val();
+        var classId = $(this).val();
+        $('#id_section').empty().append('<option value="">اختر الشعبة</option>');
+
+        if (academicYearId && classId) {
+          $.ajax({
+            url: "{% url 'load_sections' %}",
+            data: { 'academic_year_id': academicYearId, 'class_id': classId },
+            success: function (data) {
+              $.each(data, function (key, value) {
+                $('#id_section').append('<option value="' + value.id + '">' + value.name + '</option>');
+              });
+            },
+            error: function () {
+              alert("حدث خطأ أثناء تحميل الشعب!");
+            }
+          });
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>
+
+
+
+<!-- <!DOCTYPE html>
+<html lang="ar">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تحضير الحضور</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+
+<body>
+  <h1>تحضير الحضور</h1>
+  <form method="POST" action="{% url 'start_attendance' %}">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">تحضير</button>
+  </form>
+
+  <script>
+   $(document).ready(function () {
+      $('#id_academic_year').change(function () {
+        var academicYearId = $(this).val();
+        console.log("Academic Year Selected:", academicYearId);  // تحقق من القيمة المختارة
+        var classField = $('#id_class_');
+        classField.empty().append('<option value="">اختر الفصل</option>');
+        $('#id_section').empty().append('<option value="">اختر الشعبة</option>');
+
+        if (academicYearId) {
+          $.ajax({
+            url: "{% url 'load_classes' %}",
+            data: { 'academic_year_id': academicYearId },
+            success: function (data) {
+              console.log("Classes Loaded:", data);  // تحقق من البيانات المستلمة
+              $.each(data, function (key, value) {
+                classField.append('<option value="' + value.id + '">' + value.name + '</option>');
+              });
+            },
+            error: function (xhr, status, error) {
+              console.error("AJAX Error:", error);  // تحقق من الأخطاء
+            }
+          });
+        }
+      });
+      $('#id_class_').change(function () {
+        var academicYearId = $('#id_academic_year').val();  // قيمة السنة الأكاديمية
+        var classId = $(this).val();  // قيمة الفصل الدراسي
+        var sectionField = $('#id_section');
+
+        sectionField.empty();
+        sectionField.append('<option value="">اختر الشعبة</option>');  // الخيار الافتراضي
+
+        if (academicYearId && classId) {
+          $.ajax({
+            url: "{% url 'load_sections' %}",
+            data: {
+              'academic_year_id': academicYearId,
+              'class_id': classId
+            },
+            success: function (data) {
+              $.each(data, function (key, value) {
+                sectionField.append('<option value="' + value.id + '">' + value.name + '</option>');
+              });
+            }
+          });
+        }
+      });
+
+    });
+
+  </script>
+</body>
+
+</html> -->

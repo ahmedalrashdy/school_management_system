@@ -1,0 +1,209 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block extrahead %}
+<!-- {{ block.super }} -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- {{ block.super }} -->
+<div class="p-4 bg-white shadow-md rounded-lg">
+    <h2 class="text-2xl font-bold mb-4">تصفية الحضور</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+            <label for="class-level" class="block text-sm font-medium text-gray-700 mb-2">الصف الدراسي</label>
+            <select id="class-level" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                <option value="">اختر الصف الدراسي</option>
+            </select>
+        </div>
+        <div>
+            <label for="section" class="block text-sm font-medium text-gray-700 mb-2">الشعبة الدراسية</label>
+            <select id="section" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                <option value="">اختر الشعبة الدراسية</option>
+            </select>
+        </div>
+        <div>
+            <label for="exam" class="block text-sm font-medium text-gray-700 mb-2">الامتحان</label>
+            <select id="exam" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                <option value="">اختر الامتحان</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<script>
+let csrfToken = getCSRFToken();
+document.addEventListener('DOMContentLoaded', function() {
+    const classLevelSelect = document.getElementById('class-level');
+    const sectionSelect = document.getElementById('section');
+    const examSelect = document.getElementById('exam');
+    const studentsTable = document.createElement('table');
+    studentsTable.className = 'mt-4 w-full border-collapse border border-gray-300';
+    document.querySelector('.p-4').appendChild(studentsTable);
+
+    let classLevels = [];
+
+    axios.get('{% url "class_levels.index" %}', {
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+        withCredentials: true,
+    })
+    .then(function (response) {
+        classLevels = response.data;
+        classLevels.forEach(classLevel => {
+            const option = document.createElement('option');
+            option.value = classLevel.id;
+            option.textContent = classLevel.name;
+            classLevelSelect.appendChild(option);
+        });
+    })
+    .catch(function (error) {
+        console.error('Error fetching class levels:', error);
+    });
+
+    classLevelSelect.addEventListener('change', function() {
+        const selectedClassLevelId = parseInt(this.value);
+        sectionSelect.innerHTML = '<option value="">اختر الشعبة الدراسية</option>';
+        examSelect.innerHTML = '<option value="">اختر الامتحان</option>';
+
+        if (selectedClassLevelId) {
+            const selectedClassLevel = classLevels.find(cl => cl.id === selectedClassLevelId);
+            if (selectedClassLevel && selectedClassLevel.section) {
+                selectedClassLevel.section.forEach(section => {
+                    const option = document.createElement('option');
+                    option.value = section.id;
+                    option.textContent = section.name;
+                    sectionSelect.appendChild(option);
+                });
+            }
+        }
+    });
+
+    sectionSelect.addEventListener('change', function() {
+        const selectedSectionId = this.value;
+        examSelect.innerHTML = '<option value="">اختر الامتحان</option>';
+
+        if (selectedSectionId) {
+            axios.get(`{% url "sections_with_exams" pk=0 %}`.replace('0', selectedSectionId), {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                withCredentials: true,
+            })
+            .then(function (response) {
+                const sectionData = response.data;
+                if (sectionData.exams && sectionData.exams.length > 0) {
+                    sectionData.exams.forEach(exam => {
+                        const option = document.createElement('option');
+                        option.value = exam.id;
+                        option.textContent = exam.name;
+                        examSelect.appendChild(option);
+                    });
+                }
+            })
+            .catch(function (error) {
+                console.error('Error fetching section exams:', error);
+            });
+        }
+    });
+
+    examSelect.addEventListener('change', function() {
+        const selectedExamId = this.value;
+        const selectedSectionId = sectionSelect.value;
+
+        if (selectedExamId && selectedSectionId) {
+            axios.get(`{% url "section_students.index" pk=0 %}`.replace('0', selectedSectionId), {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                withCredentials: true,
+            })
+            .then(function (response) {
+                const students = response.data;
+                renderGradesTable(students, selectedExamId);
+            })
+            .catch(function (error) {
+                console.error('Error fetching students:', error);
+            });
+        }
+    });
+
+    function renderGradesTable(students, examId) {
+        const tableHeader = `
+            <thead>
+                <tr class="bg-gray-100">
+                    <th class="border border-gray-300 px-4 py-2">رقم الطالب</th>
+                    <th class="border border-gray-300 px-4 py-2">اسم الطالب</th>
+                    <th class="border border-gray-300 px-4 py-2">الدرجة</th>
+                </tr>
+            </thead>
+        `;
+
+        const tableBody = students.map(student => `
+            <tr>
+                <td class="border border-gray-300 px-4 py-2">${student.id}</td>
+                <td class="border border-gray-300 px-4 py-2">${student.name}</td>
+                <td class="border border-gray-300 px-4 py-2">
+                    <input type="number" name="grade_${student.id}" min="0" step="0.01" class="w-full">
+                </td>
+            </tr>
+        `).join('');
+
+        studentsTable.innerHTML = tableHeader + '<tbody>' + tableBody + '</tbody>';
+
+        const submitButton = document.createElement('button');
+        submitButton.textContent = 'حفظ الدرجات';
+        submitButton.className = 'mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600';
+        submitButton.addEventListener('click', () => submitGrades(examId));
+        document.querySelector('.p-4').appendChild(submitButton);
+    }
+
+    function submitGrades(examId) {
+        const gradesData = {
+            exam: parseInt(examId),
+            result: {}
+        };
+        const gradeInputs = document.querySelectorAll('input[type="number"]');
+        gradeInputs.forEach(input => {
+            const studentId = input.name.split('_')[1];
+            gradesData.result[studentId] = parseFloat(input.value);
+        });
+
+        axios.post('{% url "create_student_results" %}', gradesData, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            withCredentials: true,
+        })
+        .then(function (response) {
+            console.log('Grades saved successfully:', response.data);
+            alert('تم حفظ الدرجات بنجاح');
+        })
+        .catch(function (error) {
+            console.error('Error saving grades:', error);
+            alert('حدث خطأ أثناء حفظ الدرجات');
+        });
+    }
+});
+
+function getCSRFToken() {
+    let cookieValue = null;
+    const cookies = document.cookie.split(';');
+    cookies.forEach(cookie => {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrftoken') {
+            cookieValue = decodeURIComponent(value);
+        }
+    });
+    return cookieValue;
+}
+
+</script>
+{% endblock %}
