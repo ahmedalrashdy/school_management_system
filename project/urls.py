@@ -15,6 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.http import HttpResponseRedirect
 from django.urls import path,include
 from django.conf import settings
 from django.conf.urls.static import static
@@ -22,6 +23,7 @@ from django.conf.urls.i18n import i18n_patterns
 from django.urls import include, path
 
 urlpatterns = [
+     path('', lambda request: HttpResponseRedirect('/admin/')),
     path("api/auth/",include("users.api_urls")),
     path("admin/",include("users.urls")),
     path('admin/', admin.site.urls),
